@@ -1,69 +1,144 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+
+type Meaning = {
+  partOfSpeech?: string
+  definitions?: Array<{ definition: string }>
+}
+
+type WordEntry = {
+  word: string
+  phonetic?: string
+  meanings?: Meaning[]
+}
+
+const DEBOUNCE_MS = 500
 
 export default function Home() {
+
+  const [query, setQuery] = useState("")
+  const [results, setResults] = useState<WordEntry[]>([])
+  const [status, setStatus] = useState<
+    "idle" | "loading" | "empty" | "error" | "success"
+  >("idle")
+  const [activeIndex, setActiveIndex] = useState(-1)
+
+  const requestId = useRef(0)
+
+  useEffect(() => {
+    const trimmedQuery = query.trim()
+    const controller = new AbortController()
+    const currentRequestId = ++requestId.current
+
+    setActiveIndex(-1)
+
+    if (!trimmedQuery) {
+      setResults([])
+      setStatus("idle")
+      return () => controller.abort()
+    }
+
+    setStatus("loading")
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api?q=${encodeURIComponent(trimmedQuery)}`,
+          {
+            signal: controller.signal,
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error("Word not found")
+        }
+
+        const entries = (await response.json()) as WordEntry[]
+        if (currentRequestId !== requestId.current) return
+
+        setResults(entries)
+        setStatus(entries.length ? "success" : "empty")
+      } catch {
+        if (controller.signal.aborted || currentRequestId !== requestId.current)
+          return
+        setResults([])
+        setStatus("error")
+      }
+    }, DEBOUNCE_MS)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [query])
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!results.length) return
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault()
+      setActiveIndex((index) => (index + 1) % results.length)
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault()
+      setActiveIndex((index) => (index <= 0 ? results.length - 1 : index - 1))
+    } else if (event.key === "Escape") {
+      setActiveIndex(-1)
+    }
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main>
+      <search>
+        <label htmlFor="search">Search the dictionary</label>
+        <input
+          id="search"
+          type="search"
+          value={query}
+          placeholder="Type a word"
+          autoComplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-controls="search-results"
+          aria-expanded={results.length > 0}
+          aria-activedescendant={
+            activeIndex >= 0 ? `result-${activeIndex}` : undefined
+          }
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={handleKeyDown}
         />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
+      </search>
+
+      <div aria-live="polite" className="status">
+        {status === "loading" && <p>Loading...</p>}
+        {status === "empty" && <p>No definitions found.</p>}
+        {status === "error" && (
+          <p role="alert">Could not find that word. Try another search.</p>
+        )}
+      </div>
+
+      {status === "success" && (
+        <div id="search-results" className="results" role="listbox">
+          {results.map((entry, index) => (
+            <div
+              id={`result-${index}`}
+              key={`${entry.word}-${index}`}
+              role="option"
+              tabIndex={-1}
+              aria-selected={index === activeIndex}
+              className={index === activeIndex ? "active" : undefined}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <h2>{entry.word}</h2>
+              {entry.phonetic && <p className="phonetic">{entry.phonetic}</p>}
+              {entry.meanings?.slice(0, 2).map((meaning, meaningIndex) => (
+                <section key={`${entry.word}-meaning-${meaningIndex}`}>
+                  {meaning.partOfSpeech && <h3>{meaning.partOfSpeech}</h3>}
+                  <p>{meaning.definitions?.[0]?.definition}</p>
+                </section>
+              ))}
+            </div>
+          ))}
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+      )}
+    </main>
+  )
 }

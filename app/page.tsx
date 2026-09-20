@@ -13,7 +13,7 @@ type WordEntry = {
   meanings?: Meaning[];
 };
 
-const DEBOUNCE_MS = 500;
+const DEBOUNCE_MS = 2000;
 
 export default function Home() {
   const [query, setQuery] = useState("");

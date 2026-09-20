@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 
 const DICTIONARY_API = "https://api.dictionaryapi.dev/api/v2/entries/en"
 
+const maxDuration = 30
+const dynamic = "force-dynamic"
+
 export async function GET(request: Request) {
 
   const query = new URL(request.url).searchParams.get("q")?.trim()
@@ -13,9 +16,8 @@ export async function GET(request: Request) {
 
   try {
 
-    const response = await fetch(`${DICTIONARY_API}/${encodeURIComponent(query)}`, {
-      next: { revalidate: 3600 },
-
+    const response = await fetch(`${DICTIONARY_API}/${query}`, {
+      next: { revalidate: 3600 }
     })
 
     const data = await response.json()

@@ -1,90 +1,89 @@
-"use client"
+"use client";
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react";
 
 type Meaning = {
-  partOfSpeech?: string
-  definitions?: Array<{ definition: string }>
-}
+  partOfSpeech?: string;
+  definitions?: Array<{ definition: string }>;
+};
 
 type WordEntry = {
-  word: string
-  phonetic?: string
-  meanings?: Meaning[]
-}
+  word: string;
+  phonetic?: string;
+  meanings?: Meaning[];
+};
 
-const DEBOUNCE_MS = 500
+const DEBOUNCE_MS = 500;
 
 export default function Home() {
-
-  const [query, setQuery] = useState("")
-  const [results, setResults] = useState<WordEntry[]>([])
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<WordEntry[]>([]);
   const [status, setStatus] = useState<
     "idle" | "loading" | "empty" | "error" | "success"
-  >("idle")
-  const [activeIndex, setActiveIndex] = useState(-1)
+  >("idle");
+  const [activeIndex, setActiveIndex] = useState(-1);
 
-  const requestId = useRef(0)
+  const requestId = useRef(0);
 
   useEffect(() => {
-    const trimmedQuery = query.trim()
-    const controller = new AbortController()
-    const currentRequestId = ++requestId.current
+    const trimmedQuery = query.trim();
+    const controller = new AbortController();
+    const currentRequestId = ++requestId.current;
 
-    setActiveIndex(-1)
+    setActiveIndex(-1);
 
     if (!trimmedQuery) {
-      setResults([])
-      setStatus("idle")
-      return () => controller.abort()
+      setResults([]);
+      setStatus("idle");
+      return () => controller.abort();
     }
 
-    setStatus("loading")
+    setStatus("loading");
     const timeoutId = window.setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api?q=${encodeURIComponent(trimmedQuery)}`,
+          `/api?q=${trimmedQuery}`,
           {
             signal: controller.signal,
           },
-        )
+        );
 
         if (!response.ok) {
-          throw new Error("Word not found")
+          throw new Error("Word not found");
         }
 
-        const entries = (await response.json()) as WordEntry[]
-        if (currentRequestId !== requestId.current) return
+        const entries = (await response.json()) as WordEntry[];
+        if (currentRequestId !== requestId.current) return;
 
-        setResults(entries)
-        setStatus(entries.length ? "success" : "empty")
+        setResults(entries);
+        setStatus(entries.length ? "success" : "empty");
       } catch {
         if (controller.signal.aborted || currentRequestId !== requestId.current)
-          return
-        setResults([])
-        setStatus("error")
+          return;
+        setResults([]);
+        setStatus("error");
       }
-    }, DEBOUNCE_MS)
+    }, DEBOUNCE_MS);
 
     return () => {
-      window.clearTimeout(timeoutId)
-      controller.abort()
-    }
-  }, [query])
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [query]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!results.length) return
+    if (!results.length) return;
 
     if (event.key === "ArrowDown") {
-      event.preventDefault()
-      setActiveIndex((index) => (index + 1) % results.length)
+      event.preventDefault();
+      setActiveIndex((index) => (index + 1) % results.length);
     } else if (event.key === "ArrowUp") {
-      event.preventDefault()
-      setActiveIndex((index) => (index <= 0 ? results.length - 1 : index - 1))
+      event.preventDefault();
+      setActiveIndex((index) => (index <= 0 ? results.length - 1 : index - 1));
     } else if (event.key === "Escape") {
-      setActiveIndex(-1)
+      setActiveIndex(-1);
     }
-  }
+  };
 
   return (
     <main>
@@ -140,5 +139,5 @@ export default function Home() {
         </div>
       )}
     </main>
-  )
+  );
 }
